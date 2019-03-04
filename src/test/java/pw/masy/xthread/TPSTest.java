@@ -19,8 +19,8 @@ public class TPSTest {
 			LockSupport.parkUntil(startTime + (seconds * 1000));
 
 			double endTicks = thread.getTickCount() / (float) seconds;
-			System.out.println("Fluctuation: (" + endTicks + "/" + tps + " TPS)");
-			System.out.println("Average time in last second: " + thread.getTimings());
+			System.out.println("Fluctuation: " + endTicks + "/" + tps + " TPS");
+			System.out.println("Average time in last second: " + thread.getTimings() + "/" + (1000.0f / tps) + "ms");
 			thread.interrupt();
 		}
 	}
