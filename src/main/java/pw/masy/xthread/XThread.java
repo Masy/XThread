@@ -116,12 +116,35 @@ public abstract class XThread implements Runnable, Thread.UncaughtExceptionHandl
 	 * Calculates the values for the {@link #sleepLookUpTable}.
 	 */
 	private void calcSleepTable() {
-		this.sleepLookUpTable = new int[this.tps];
-		for (int n = 0, remainder = 1000; n < this.sleepLookUpTable.length; n++) {
+		int[] table = new int[this.tps];
+
+		int valueLeft = 1000 / this.tps;
+		int valueRight = valueLeft + 1;
+		int counterLeft = 0;
+		int counterRight = 0;
+
+		for (int n = 0, remainder = 1000; n < table.length; n++) {
 			int maxSleepTime = remainder / (tps - n);
-			this.sleepLookUpTable[n] = maxSleepTime;
 			remainder -= maxSleepTime;
+			if (maxSleepTime == valueLeft) counterLeft++;
+			else counterRight++;
 		}
+
+		boolean leftGreaterRight = counterLeft > counterRight;
+		int filler = leftGreaterRight ? valueLeft : valueRight;
+		int value = leftGreaterRight ? valueRight : valueLeft;
+		int size = leftGreaterRight ? counterRight : counterLeft;
+		float increment = leftGreaterRight ? ((float) counterLeft / counterRight) : ((float) counterRight / counterLeft);
+		float counter = increment;
+		for (int n = 0; n < this.tps; n++) {
+			if (table[n] == 0) table[n] = filler;
+			if (n < size) {
+				table[Math.round(counter)] = value;
+				counter += 1 + increment;
+			}
+		}
+
+		this.sleepLookUpTable = table;
 	}
 
 	@Override

@@ -25,7 +25,7 @@ public class TestThread extends XThread {
 
 	@Override
 	protected void tick(long currentTime, long tickCount) {
-		int sleep = 1000 / this.getTps() - 2;
+		int sleep = 1000 / this.getTps() - 1;
 		LockSupport.parkUntil(currentTime + sleep);
 	}
 
