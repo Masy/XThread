@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
@@ -14,10 +13,8 @@ import org.slf4j.LoggerFactory;
 /**
  * Class representing the XThread.
  */
-public abstract class XThread implements Runnable, Thread.UncaughtExceptionHandler {
+public abstract class XThread implements IXThread {
 
-	private static final List<XThread> THREADS = new ArrayList<>();
-	private static final ReentrantReadWriteLock THREAD_LOCK = new ReentrantReadWriteLock();
 
 	private Thread thread;
 	/**
@@ -33,7 +30,7 @@ public abstract class XThread implements Runnable, Thread.UncaughtExceptionHandl
 	/**
 	 * The list containing the {@link XThread}'s this thread is waiting for.
 	 */
-	@Getter private final CopyOnWriteArrayList<XThread> threadQueue = new CopyOnWriteArrayList<>();
+	@Getter private final CopyOnWriteArrayList<IXThread> threadQueue = new CopyOnWriteArrayList<>();
 	private final List<Runnable> setupCallbacks = new ArrayList<>();
 	private final QueueOrder queueOrder;
 	/**
@@ -73,7 +70,7 @@ public abstract class XThread implements Runnable, Thread.UncaughtExceptionHandl
 	 * @param taskThreshold the task threshold from when to start to warn
 	 * @param threadQueue   the {@link XThread}'s this thread is waiting for before it starts to setup
 	 */
-	public XThread(String name, int priority, boolean isDaemon, int tps, QueueOrder queueOrder, int taskThreshold, XThread... threadQueue) {
+	public XThread(String name, int priority, boolean isDaemon, int tps, QueueOrder queueOrder, int taskThreshold, IXThread... threadQueue) {
 		this.thread = new Thread(this);
 		this.name = name;
 		this.logger = LoggerFactory.getLogger(name);
@@ -86,31 +83,15 @@ public abstract class XThread implements Runnable, Thread.UncaughtExceptionHandl
 		this.thread.setDaemon(isDaemon);
 		this.thread.setUncaughtExceptionHandler(this);
 
-		for (XThread thread : threadQueue) {
+		for (IXThread thread : threadQueue) {
 			this.threadQueue.addIfAbsent(thread);
 		}
 
-		boolean locked = false;
 		try {
-			locked = THREAD_LOCK.writeLock().tryLock();
+			THREAD_LOCK.writeLock().lock();
 			THREADS.add(this);
 		} finally {
-			if (locked) THREAD_LOCK.writeLock().unlock();
-		}
-	}
-
-	/**
-	 * Thread-safe getter for the {@link #THREADS} list.
-	 *
-	 * @return the list of all {@link XThread}s
-	 */
-	public static List<XThread> getThreads() {
-		boolean locked = false;
-		try {
-			locked = THREAD_LOCK.readLock().tryLock();
-			return getThreads();
-		} finally {
-			if (locked) THREAD_LOCK.readLock().unlock();
+			THREAD_LOCK.writeLock().unlock();
 		}
 	}
 
@@ -122,6 +103,7 @@ public abstract class XThread implements Runnable, Thread.UncaughtExceptionHandl
 	 * @param newTps the new tps of the thread.
 	 * @see #calcSleepTable()
 	 */
+	@Override
 	public void setTps(int newTps) {
 		this.tps = newTps;
 		this.noSleepThread = this.tps < 1;
@@ -276,6 +258,13 @@ public abstract class XThread implements Runnable, Thread.UncaughtExceptionHandl
 	}
 
 	/**
+	 * Method which gets called before the thread initializes.
+	 *
+	 * @throws Exception when an exception occurs. This is to prevent users from using a try/catch in this method.
+	 */
+	protected abstract void onStart() throws Exception;
+
+	/**
 	 * Setup method that is called when the thread initializes.
 	 *
 	 * @throws Exception when an exception occurs. This is to prevent users from using a try/catch in the setup method.
@@ -304,14 +293,13 @@ public abstract class XThread implements Runnable, Thread.UncaughtExceptionHandl
 
 		this.setupCallbacks.clear();
 
-		boolean locked = false;
 		try {
-			locked = THREAD_LOCK.readLock().tryLock();
-			for (XThread thread : THREADS) {
+			THREAD_LOCK.readLock().lock();
+			for (IXThread thread : THREADS) {
 				thread.getThreadQueue().remove(this);
 			}
 		} finally {
-			if (locked) THREAD_LOCK.readLock().unlock();
+			THREAD_LOCK.readLock().unlock();
 		}
 
 		return true;
@@ -326,17 +314,11 @@ public abstract class XThread implements Runnable, Thread.UncaughtExceptionHandl
 	protected abstract void tick(long currentTime, long tickCount);
 
 	/**
-	 * Method which gets called before the thread initializes.
-	 *
-	 * @throws Exception when an exception occurs. This is to prevent users from using a try/catch in this method.
-	 */
-	public abstract void onStart() throws Exception;
-
-	/**
 	 * Calls the {@link #onStart()} method and starts the thread.
 	 *
 	 * @see #onStart()
 	 */
+	@Override
 	public void start() {
 		try {
 			this.onStart();
@@ -358,6 +340,7 @@ public abstract class XThread implements Runnable, Thread.UncaughtExceptionHandl
 	 *
 	 * @see #onStop()
 	 */
+	@Override
 	public final void interrupt() {
 		try {
 			this.onStop();
@@ -370,7 +353,8 @@ public abstract class XThread implements Runnable, Thread.UncaughtExceptionHandl
 
 	@Override
 	public void uncaughtException(Thread t, Throwable e) {
-		this.logger.error("Caught uncaught exception in this thread!", t);
+		this.logger.error("Caught uncaught exception in this thread!", e);
+		System.exit(-1);
 		// TODO: handle crash
 	}
 }
