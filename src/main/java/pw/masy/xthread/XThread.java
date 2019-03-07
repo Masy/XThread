@@ -90,11 +90,27 @@ public abstract class XThread implements Runnable, Thread.UncaughtExceptionHandl
 			this.threadQueue.addIfAbsent(thread);
 		}
 
+		boolean locked = false;
 		try {
-			THREAD_LOCK.writeLock().lock();
+			locked = THREAD_LOCK.writeLock().tryLock();
 			THREADS.add(this);
 		} finally {
-			THREAD_LOCK.writeLock().unlock();
+			if (locked) THREAD_LOCK.writeLock().unlock();
+		}
+	}
+
+	/**
+	 * Thread-safe getter for the {@link #THREADS} list.
+	 *
+	 * @return the list of all {@link XThread}s
+	 */
+	public static List<XThread> getThreads() {
+		boolean locked = false;
+		try {
+			locked = THREAD_LOCK.readLock().tryLock();
+			return getThreads();
+		} finally {
+			if (locked) THREAD_LOCK.readLock().unlock();
 		}
 	}
 
@@ -288,13 +304,14 @@ public abstract class XThread implements Runnable, Thread.UncaughtExceptionHandl
 
 		this.setupCallbacks.clear();
 
+		boolean locked = false;
 		try {
-			THREAD_LOCK.readLock().lock();
+			locked = THREAD_LOCK.readLock().tryLock();
 			for (XThread thread : THREADS) {
 				thread.getThreadQueue().remove(this);
 			}
 		} finally {
-			THREAD_LOCK.readLock().unlock();
+			if (locked) THREAD_LOCK.readLock().unlock();
 		}
 
 		return true;
