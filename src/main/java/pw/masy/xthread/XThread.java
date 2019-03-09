@@ -9,6 +9,8 @@ import lombok.Getter;
 import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import pw.masy.xthread.crash.DefaultCrashManager;
+import pw.masy.xthread.crash.ICrashManager;
 
 /**
  * Class representing the XThread.
@@ -38,6 +40,7 @@ public abstract class XThread implements IXThread {
 	 * The {@link Logger} of the thread.
 	 */
 	@Getter protected final Logger logger;
+	private ICrashManager crashManager;
 	/**
 	 * The ticks per second the thread tries to achieve.
 	 */
@@ -56,6 +59,7 @@ public abstract class XThread implements IXThread {
 	 * Whether this thread is currently stopping or not.
 	 */
 	@Getter private boolean stopping;
+	@Getter private State threadState;
 	/**
 	 * The number of ticks this thread has since it started.
 	 */
@@ -72,17 +76,61 @@ public abstract class XThread implements IXThread {
 	 * @param priority      the priority of the thread
 	 * @param isDaemon      whether this thread ios a daemon of the main thread or not
 	 * @param tps           the ticks per second the thread tries to achieve
+	 * @param threadQueue   the {@link XThread}'s this thread is waiting for before it starts to setup
+	 */
+	public XThread(String name, int priority, boolean isDaemon, int tps, IXThread... threadQueue) {
+		this(name, priority, isDaemon, tps, QueueOrder.QUEUE_BEFORE_TICK, 250, new DefaultCrashManager(), threadQueue);
+	}
+
+	/**
+	 * Constructs a new XThread.
+	 *
+	 * @param name          the name of the thread and therefore the logger too
+	 * @param priority      the priority of the thread
+	 * @param isDaemon      whether this thread ios a daemon of the main thread or not
+	 * @param tps           the ticks per second the thread tries to achieve
+	 * @param queueOrder    the {@link QueueOrder} of the thread
+	 * @param threadQueue   the {@link XThread}'s this thread is waiting for before it starts to setup
+	 */
+	public XThread(String name, int priority, boolean isDaemon, int tps, QueueOrder queueOrder, IXThread... threadQueue) {
+		this(name, priority, isDaemon, tps, queueOrder, 250, new DefaultCrashManager(), threadQueue);
+	}
+
+	/**
+	 * Constructs a new XThread.
+	 *
+	 * @param name          the name of the thread and therefore the logger too
+	 * @param priority      the priority of the thread
+	 * @param isDaemon      whether this thread ios a daemon of the main thread or not
+	 * @param tps           the ticks per second the thread tries to achieve
 	 * @param queueOrder    the {@link QueueOrder} of the thread
 	 * @param taskThreshold the task threshold from when to start to warn
 	 * @param threadQueue   the {@link XThread}'s this thread is waiting for before it starts to setup
 	 */
 	public XThread(String name, int priority, boolean isDaemon, int tps, QueueOrder queueOrder, int taskThreshold, IXThread... threadQueue) {
+		this(name, priority, isDaemon, tps, queueOrder, taskThreshold, new DefaultCrashManager(), threadQueue);
+	}
+
+	/**
+	 * Constructs a new XThread.
+	 *
+	 * @param name          the name of the thread and therefore the logger too
+	 * @param priority      the priority of the thread
+	 * @param isDaemon      whether this thread ios a daemon of the main thread or not
+	 * @param tps           the ticks per second the thread tries to achieve
+	 * @param queueOrder    the {@link QueueOrder} of the thread
+	 * @param taskThreshold the task threshold from when to start to warn
+	 * @param crashManager  the {@link ICrashManager} of the thread
+	 * @param threadQueue   the {@link XThread}'s this thread is waiting for before it starts to setup
+	 */
+	public XThread(String name, int priority, boolean isDaemon, int tps, QueueOrder queueOrder, int taskThreshold, ICrashManager crashManager, IXThread... threadQueue) {
 		this.thread = new Thread(this);
 		this.name = name;
 		this.logger = LoggerFactory.getLogger(name);
 		this.queueOrder = queueOrder;
 		this.taskThreshold = taskThreshold;
 		this.setTps(tps);
+		this.crashManager = crashManager;
 
 		this.thread.setName(name);
 		this.thread.setPriority(priority);
@@ -162,9 +210,13 @@ public abstract class XThread implements IXThread {
 			}
 		}
 
+		this.threadState = State.INITIALIZING;
+
 		if (!this.init()) {
 			return;
 		}
+
+		this.threadState = State.RUNNING;
 
 		long currentCycleTime;
 		long lastCycleDuration = 0;
@@ -347,6 +399,7 @@ public abstract class XThread implements IXThread {
 		this.started = true;
 		this.setup = false;
 		this.stopping = false;
+		this.threadState = State.STARTING;
 
 		try {
 			this.onStart();
@@ -378,6 +431,7 @@ public abstract class XThread implements IXThread {
 		this.started = false;
 		this.setup = false;
 		this.stopping = true;
+		this.threadState = State.STOPPING;
 
 		try {
 			this.onStop();
@@ -392,12 +446,12 @@ public abstract class XThread implements IXThread {
 		this.stopCallbacks.clear();
 
 		this.thread.interrupt();
+		this.threadState = State.STOPPED;
 	}
 
 	@Override
-	public void uncaughtException(Thread t, Throwable e) {
-		this.logger.error("Caught uncaught exception in this thread!", e);
-		System.exit(-1);
-		// TODO: handle crash
+	public void uncaughtException(Thread thread, Throwable throwable) {
+		this.crashManager.handleCrash(this, throwable);
 	}
+
 }

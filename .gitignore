@@ -33,3 +33,5 @@ pom.xml.versionsBackup
 *.ipr
 *.iws
 .idea/
+
+crash_reports/*
