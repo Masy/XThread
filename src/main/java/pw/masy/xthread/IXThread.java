@@ -74,6 +74,13 @@ public interface IXThread extends Runnable, Thread.UncaughtExceptionHandler {
 	boolean isNoSleepThread();
 
 	/**
+	 * Checks if the thread has been started.
+	 *
+	 * @return <i>true</i> if the thread already started
+	 */
+	boolean hasStarted();
+
+	/**
 	 * Checks if the thread is set up.
 	 *
 	 * @return <i>true</i> if the thread is setup

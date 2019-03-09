@@ -47,6 +47,7 @@ public abstract class XThread implements IXThread {
 	 * Whether this thread is a no sleep thread or not.
 	 */
 	@Getter private boolean noSleepThread;
+	@Getter private boolean started;
 	/**
 	 * Whether this thread is set up or not.
 	 */
@@ -338,11 +339,13 @@ public abstract class XThread implements IXThread {
 	 */
 	@Override
 	public void start() {
-		if (this.setup) {
+		if (this.started) {
 			this.logger.warn("Tried starting thread but thread is already started.");
 			return;
 		}
 
+		this.started = true;
+		this.setup = false;
 		this.stopping = false;
 
 		try {
@@ -372,6 +375,8 @@ public abstract class XThread implements IXThread {
 			return;
 		}
 
+		this.started = false;
+		this.setup = false;
 		this.stopping = true;
 
 		try {
@@ -387,8 +392,6 @@ public abstract class XThread implements IXThread {
 		this.stopCallbacks.clear();
 
 		this.thread.interrupt();
-
-		this.setup = false;
 	}
 
 	@Override
