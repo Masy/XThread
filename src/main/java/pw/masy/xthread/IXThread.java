@@ -78,7 +78,7 @@ public interface IXThread extends Runnable, Thread.UncaughtExceptionHandler {
 	 *
 	 * @return <i>true</i> if the thread already started
 	 */
-	boolean hasStarted();
+	boolean isStarted();
 
 	/**
 	 * Checks if the thread is set up.
@@ -93,6 +93,13 @@ public interface IXThread extends Runnable, Thread.UncaughtExceptionHandler {
 	 * @return <i>true</i> if the thread is stopping
 	 */
 	boolean isStopping();
+
+	/**
+	 * Get the current state of the thread.
+	 *
+	 * @return the current state of the thread as {@link State}
+	 */
+	State getThreadState();
 
 	/**
 	 * Gets the number of ticks the thread has ticked.
@@ -147,5 +154,13 @@ public interface IXThread extends Runnable, Thread.UncaughtExceptionHandler {
 	 * Interrupts the thread.
 	 */
 	void interrupt();
+
+	enum State {
+		STOPPED,
+		STARTING,
+		INITIALIZING,
+		RUNNING,
+		STOPPING,
+	}
 
 }
