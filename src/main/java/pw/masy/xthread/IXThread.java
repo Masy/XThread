@@ -81,6 +81,13 @@ public interface IXThread extends Runnable, Thread.UncaughtExceptionHandler {
 	boolean isSetup();
 
 	/**
+	 * Checks if the thread is currently stopping.
+	 *
+	 * @return <i>true</i> if the thread is stopping
+	 */
+	boolean isStopping();
+
+	/**
 	 * Gets the number of ticks the thread has ticked.
 	 *
 	 * @return the number of ticks the thread has ticked

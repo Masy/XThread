@@ -32,6 +32,7 @@ public abstract class XThread implements IXThread {
 	 */
 	@Getter private final CopyOnWriteArrayList<IXThread> threadQueue = new CopyOnWriteArrayList<>();
 	private final List<Runnable> setupCallbacks = new ArrayList<>();
+	private final List<Runnable> stopCallbacks = new ArrayList<>();
 	private final QueueOrder queueOrder;
 	/**
 	 * The {@link Logger} of the thread.
@@ -50,6 +51,10 @@ public abstract class XThread implements IXThread {
 	 * Whether this thread is set up or not.
 	 */
 	@Getter private boolean setup;
+	/**
+	 * Whether this thread is currently stopping or not.
+	 */
+	@Getter private boolean stopping;
 	/**
 	 * The number of ticks this thread has since it started.
 	 */
@@ -258,6 +263,19 @@ public abstract class XThread implements IXThread {
 	}
 
 	/**
+	 * Adds a callback to the {@link #stopCallbacks} list if the thread isn't already stopping.
+	 *
+	 * @param callback the {@link Runnable} that will be added to the {@link #stopCallbacks} list
+	 */
+	public void addStopCallback(Runnable callback) {
+		if (this.stopping) {
+			this.logger.warn("Tried adding stop callback but thread is already stopping.");
+		} else {
+			this.stopCallbacks.add(callback);
+		}
+	}
+
+	/**
 	 * Method which gets called before the thread initializes.
 	 *
 	 * @throws Exception when an exception occurs. This is to prevent users from using a try/catch in this method.
@@ -272,7 +290,7 @@ public abstract class XThread implements IXThread {
 	protected abstract void setup() throws Exception;
 
 	/**
-	 * Initializes the thread and then removed it from the thread queue of all known {@link XThread}'s.
+	 * Initializes the thread, fires all callbacks from the {@link #setupCallbacks} list and then removes it from the thread queue of all known {@link XThread}'s.
 	 *
 	 * @return <i>true</i> if the setup method was called without an exception
 	 * @see #setup
@@ -320,6 +338,13 @@ public abstract class XThread implements IXThread {
 	 */
 	@Override
 	public void start() {
+		if (this.setup) {
+			this.logger.warn("Tried starting thread but thread is already started.");
+			return;
+		}
+
+		this.stopping = false;
+
 		try {
 			this.onStart();
 		} catch (Throwable t) {
@@ -336,19 +361,34 @@ public abstract class XThread implements IXThread {
 	public abstract void onStop() throws Exception;
 
 	/**
-	 * Calls {@link #onStop()} and interrupts the thread.
+	 * Calls {@link #onStop()}, fires all callbacks from the {@link #stopCallbacks} list and interrupts the thread.
 	 *
 	 * @see #onStop()
 	 */
 	@Override
 	public final void interrupt() {
+		if (this.stopping) {
+			this.logger.warn("Tried stopping thread but thread is already stopping.");
+			return;
+		}
+
+		this.stopping = true;
+
 		try {
 			this.onStop();
 		} catch (Throwable t) {
 			this.uncaughtException(this.thread, t);
 		}
 
+		for (Runnable runnable : this.stopCallbacks) {
+			runnable.run();
+		}
+
+		this.stopCallbacks.clear();
+
 		this.thread.interrupt();
+
+		this.setup = false;
 	}
 
 	@Override
