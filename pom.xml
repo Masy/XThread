@@ -5,7 +5,7 @@
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>pw.masy.xthread</groupId>
-	<artifactId>XThread</artifactId>
+	<artifactId>xthread</artifactId>
 	<version>1.0-SNAPSHOT</version>
 	<description>XThread is a wrapper for java threads providing advanced features like configurable tps, task queues and setup callbacks.</description>
 	<url>https://github.com/Masy/XThread</url>
